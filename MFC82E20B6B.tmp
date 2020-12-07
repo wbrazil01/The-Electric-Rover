@@ -1,0 +1,163 @@
+#include  "msp430.h"
+#include  "functions.h"
+#include <string.h>
+#include  "macros.h"
+
+extern char process_buffer[50];
+extern int response_index;
+extern int transmit_response;
+char command_response[16];
+extern int input_processed;
+extern unsigned int buffer1;
+extern unsigned int buffer2;
+extern int pb_index;
+extern unsigned int iot_tx_wr;
+extern unsigned int iot_tx_rd;
+extern unsigned int iot_rx_wr;
+extern unsigned int iot_rx_rd;
+extern char IOT_2_PC[50];
+extern char PC_2_IOT[16];
+int toPC = INIT;
+int bootstate = WIFI;
+int k = INIT;
+int next = FALSE;
+char start_command[11] = "AT+NSTAT=?\r";
+extern int pbstatus;
+int wifi_connected = FALSE;
+char empty_command = '\r';
+int ssid_found = FALSE;
+char ssid[TEN] = "          ";
+int ssid_wr = INIT;
+extern char testsend;
+int foundSSID = FALSE;
+int ipstatus = SEARCHING;
+int ip_found = FALSE;
+int found = FALSE;
+char ip1[TEN] = "          ";
+char ip2[TEN] = "          ";
+int ip_section = INIT;
+int ipcounter1 = INIT;
+int ipcounter2 = INIT;
+int numcounter1 = INIT;
+int numcounter2 = INIT;
+
+
+void IOT(void){
+  process_command(NULL);
+  
+  switch(bootstate){            //set to PAUSE by default until we are connected.
+  case WIFI:
+    if(wifi_connected == TRUE){ //if wifi is connected continue.
+      out_character(empty_command);
+      for(int z = INIT; z<sizeof(start_command);z++)
+        out_character(start_command[z]);
+      bootstate = SSID;
+    }
+    break;
+  case SSID:
+    if(ssid_found == TRUE){
+      display_ssid();
+      bootstate = IP;
+    }
+    break;
+  case IP:
+    if(ip_found == TRUE){
+      display_ip();
+      bootstate = PORT;
+    }
+    break;
+  case PORT:
+    break;
+  default:
+    break;   
+  }
+}
+
+void process_command(char command){
+  if(input_processed == TRUE){
+    clear_process_buf();                //clear
+    input_processed = FALSE;               //reset indicator
+  }
+//  switch(command){
+//  case '^':
+//    response_index = INIT;
+//    transmit_response = TRUE;
+//    strcpy(command_response,"I'm here");
+//    UCA1IE &= ~UCRXIE;
+//    UCA1IE |= UCTXIE;
+//    break;
+//  case 'F':
+//    response_index = INIT;
+//    transmit_response = TRUE;
+//    Init_Serial_UCA0(HIGHBAUD);
+//    strcpy(command_response,"115,200");
+//    UCA1IE &= ~UCRXIE;
+//    UCA1IE |= UCTXIE;
+//    break;
+//  case 'S':
+//    response_index = INIT;
+//    transmit_response = TRUE;
+//    Init_Serial_UCA0(LOWBAUD);
+//    strcpy(command_response,"9,600");
+//    UCA1IE &= ~UCRXIE;
+//    UCA1IE |= UCTXIE;
+//    break;
+//  default: break;
+  }
+
+
+
+void ip_grab(void){
+  switch(ipstatus){
+  case SEARCHING:               //searching for "IP"
+    if(testsend == 'I' && found == FALSE)         //first instance of I
+      found = TRUE;
+    else if(testsend != 'P' && found == TRUE)       //if next letter is not P then back to first if
+      found = FALSE;
+    else if(testsend == 'P' && found == TRUE){
+      found = FALSE;
+      ipstatus = FOUND;
+    } 
+    break;
+  case FOUND:                  //searching for the '=' before the address
+    if(testsend == '=')
+      ipstatus = READING;
+    break;
+  case READING:                 //copying the address to two different arrays
+    if(testsend != ' '){
+      if(ip_section < TWO){             //first two sections
+        ip1[ipcounter1++] = testsend;
+        numcounter1++;
+        if(testsend == '.')
+          ip_section++;
+      }else{                            //last two sections
+        numcounter2++;
+        ip2[ipcounter2++] = testsend;
+      }
+    }else{                              //space indicates no more values
+      ipstatus = PAUSE;
+      ip_found = TRUE;
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+void ssid_grab(void){
+  if(testsend == '"' && foundSSID == TRUE){        //second quotation        
+    foundSSID = FALSE;
+    ssid_found = TRUE;
+  }
+  
+  if(foundSSID == TRUE)                 //check for second quotation first so it doesn't accidentally get added in on the last cycle
+    ssid[ssid_wr++] = testsend;         //check for first quotation last so that the first character you add is ssid not "
+  
+  if(testsend == '"' && foundSSID == FALSE)            //first quotation
+    foundSSID = TRUE;
+  
+}
+
+void checkstats(void){
+  
+}
